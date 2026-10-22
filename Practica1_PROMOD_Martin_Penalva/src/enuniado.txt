@@ -1,0 +1,495 @@
+Práctica I: Refactorización de una Planta Industrial
+mediante Programación Orientada a Objetos
+Programación Modular y Orientada a Objetos
+Universidad de Burgos
+Curso 2026–2027
+1. Introducción
+En esta práctica se trabajará con una simulación realista de una planta industrial desarrollada
+en Python utilizando MuJoCo, OpenCV y NumPy. El código inicial implementa una planta
+formada por varias cintas transportadoras, cámaras de inspección, objetos, un horno y una isla
+robotizada con un manipulador Franka Emika Panda.
+El código proporcionado funciona, pero ha sido desarrollado principalmente mediante progra
+mación procedural, utilizando funciones, variables globales y estructuras de datos compartidas.
+El objetivo de esta práctica es refactorizar dicho código utilizando Programación Orien
+tada a Objetos (POO), de forma que cada elemento de la planta quede representado mediante
+una clase con responsabilidades claramente definidas.
+Figura 1: Ejemplo de la planta industrial.
+Esta práctica tiene además un objetivo adicional: preparar la arquitectura de software
+que se utilizará posteriormente en la Práctica II. Por tanto, no se busca únicamente que el
+programa continúe funcionando, sino que su estructura sea modular, mantenible y extensible.
+1
+2. Objetivos
+Al finalizar la práctica, el estudiante deberá ser capaz de:
+Identificar elementos de un sistema real que pueden representarse mediante clases.
+Transformar código procedural en una arquitectura orientada a objetos.
+Diseñar atributos y métodos coherentes con la responsabilidad de cada clase.
+Reducir el uso de variables globales.
+Aplicar encapsulación y separación de responsabilidades.
+Utilizar composición entre objetos.
+Integrar OpenCV dentro de una clase de adquisición y procesamiento de imágenes.
+Comunicar el resultado de una detección visual con otros elementos de la simulación.
+Relacionar el estado interno de un objeto con su representación visual en MuJoCo.
+Preparar una base de código reutilizable para la Práctica II.
+3. Código inicial
+Se proporciona una implementación funcional de una planta industrial que incluye, entre otros
+elementos:
+Cuatro cintas transportadoras formando un circuito.
+Una quinta cinta que conduce piezas hacia un horno.
+Cámaras de inspección asociadas a las diferentes zonas de la planta.
+Objetos de diferentes geometrías que circulan sobre las cintas.
+Control individual de marcha y parada de las cintas.
+Visualización mediante MuJoCo.
+Visualización de cámaras mediante OpenCV.
+Un robot Franka Emika Panda.
+Cinemática inversa cartesiana para el robot.
+En el código original aparecen funciones como:
+build_mjcf()
+get_ids()
+reset_objects()
+update_segment()
+cinta_activa()
+conmutar_cinta()
+transport_force()
+apply_transport()
+render_camera_mosaic()
+run()
+Estas funciones constituyen el punto de partida para analizar qué responsabilidades deberían
+trasladarse a clases.
+2
+4. Trabajo a realizar
+El trabajo principal consiste en refactorizar la planta utilizando Programación Orien
+tada a Objetos.
+No se debe desarrollar una solución completamente diferente. Se debe partir del código sumi
+nistrado y reorganizarlo de manera razonada.
+4.1. Clases mínimas
+Como mínimo deberán existir clases para representar los siguientes elementos:
+CintaTransportadora
+CamaraInspeccion
+ObjetoIndustrial o equivalente
+Horno
+PlantaIndustrial
+Se podrán crear clases adicionales cuando se considere necesario.
+Por ejemplo:
+GestorSimulacion
+SistemaVision
+EstacionRobotizada
+ControladorPlanta
+La elección final de clases forma parte del diseño de la práctica y deberá justificarse brevemente
+en el informe.
+4.2. Clase CintaTransportadora
+Cada cinta deberá disponer de su propio estado y configuración.
+Como mínimo deberá almacenar información equivalente a:
+Identificador de la cinta.
+Velocidad.
+Dirección de transporte.
+Estado de marcha/parada.
+Parámetros necesarios para aplicar el movimiento de las piezas.
+La variable global utilizada originalmente para controlar cada cinta:
+BANDERA_CINTA_1 = True
+BANDERA_CINTA_2 = True
+...
+deberá desaparecer o quedar encapsulada dentro de cada objeto.
+Una posible interfaz sería:
+3
+class CintaTransportadora:
+def __init__(self, nombre, velocidad):
+self.nombre = nombre
+self.velocidad = velocidad
+self.activa = True
+def arrancar(self):
+self.activa = True
+def detener(self):
+self.activa = False
+def conmutar(self):
+self.activa = not self.activa
+def esta_activa(self):
+return self.activa
+El código anterior es únicamente orientativo. No es obligatorio utilizar exactamente estos nom
+bres.
+4.3. Clase CamaraInspeccion
+Cada cámara de inspección deberá representarse mediante una clase.
+Esta clase deberá responsabilizarse de:
+Conocer el nombre de la cámara MuJoCo asociada.
+Capturar la imagen.
+Procesar la imagen utilizando OpenCV.
+Detectar si aparece una pieza en su campo de visión.
+Detectar la forma geométrica del objeto observado.
+Comunicar el resultado de la detección a la cinta correspondiente.
+Como mínimo se deberán diferenciar algunas de las geometrías presentes en la simulación, por
+ejemplo:
+círculo/cilindro,
+cuadrado o rectángulo,
+otras geometrías incluidas por el grupo.
+Se puede utilizar una estrategia basada en:
+1. Conversión a escala de grises.
+2. Umbralización o segmentación.
+3. Extracción de contornos.
+4. Aproximación poligonal.
+5. Número de vértices, circularidad u otras características geométricas.
+4
+Porejemplo:
+class CamaraInspeccion:
+def __init__(self, nombre, cinta):
+self.nombre = nombre
+self.cinta = cinta
+self.objeto_detectado = False
+self.forma_detectada = None
+def capturar(self, renderer, data):
+...
+def detectar_forma(self, imagen):
+...
+def actualizar(self, renderer, data):
+imagen = self.capturar(renderer, data)
+self.forma_detectada = self.detectar_forma(imagen)
+self.objeto_detectado = self.forma_detectada is not None
+if self.objeto_detectado:
+self.cinta.detener()
+return imagen
+4.4. Variablebooleanadedetección
+Ladetecciónrealizadaporcadacámaradeberáactualizarobligatoriamenteunavariableboo
+leana.
+Porejemplo:
+self.objeto_detectado = True
+cuandoexisteunapiezadentrodelazonadeinspección,y:
+self.objeto_detectado = False
+cuandonoexisteningunapiezadetectada.
+Estavariabledeberáutilizarseparacontrolarlacintaasociada.
+Elcomportamientomínimorequeridoserá:
+if camara.objeto_detectado:
+cinta.detener()
+Portanto, cuandounacámaradetecteunapieza, lacintacorrespondientedeberádete
+nerseautomáticamente.
+Laarquitecturadeberápermitirqueposteriormente,enlaPrácticaII,sepuedanañadirnuevas
+decisionessobrelapiezadetectada.
+4.5. ClaseObjetoIndustrial
+Losdiferentesobjetosde laplantadeberánrepresentarsemedianteunaclaseounajerarquía
+declases.
+Comomínimosedeberáalmacenar:
+Identificador.
+5
+Tipo o forma.
+Segmento o cinta actual.
+Información necesaria para acceder al cuerpo correspondiente en MuJoCo.
+Opcionalmente se podrán definir subclases como:
+ObjetoIndustrial
+|
++-- Cilindro
+|
++-- Caja
+No es obligatorio utilizar herencia si el diseño puede resolverse de forma más clara mediante
+composición.
+4.6. Clase Horno
+El horno deberá encapsular el comportamiento asociado a la parte final de la línea y deberá
+incluir, además del registro de piezas, una variable de temperatura.
+Como mínimo deberá almacenar:
+Número de piezas recibidas.
+Detección de entrada de una nueva pieza.
+Estado del horno.
+Temperatura actual del horno.
+Temperatura mínima y máxima de funcionamiento.
+Identificador del elemento gráfico del horno dentro del modelo MuJoCo.
+La temperatura deberá poder modificarse mediante métodos de la clase. Por ejemplo:
+class Horno:
+def __init__(self, geom_id, temperatura_inicial=20.0):
+self.numero_piezas = 0
+self.temperatura = temperatura_inicial
+self.geom_id = geom_id
+def registrar_pieza(self):
+self.numero_piezas += 1
+def aumentar_temperatura(self, incremento):
+self.temperatura += incremento
+def disminuir_temperatura(self, decremento):
+self.temperatura-= decremento
+def obtener_temperatura(self):
+return self.temperatura
+6
+Representación visual de la temperatura en MuJoCo
+La temperatura del horno deberá reflejarse visualmente en la simulación modificando su color
+mediante MuJoCo.
+Por ejemplo, una posible codificación visual es:
+Temperatura baja: azul.
+Temperatura media: amarillo o naranja.
+Temperatura alta: rojo.
+El alumnado deberá implementar un método que actualice el color del horno en función de la
+temperatura.
+Una posible implementación orientativa sería:
+def actualizar_color(self, model):
+if self.temperatura < 50.0:
+color = [0.1, 0.3, 1.0, 1.0]
+elif self.temperatura < 100.0:
+color = [1.0, 0.6, 0.1, 1.0]
+else:
+color = [1.0, 0.1, 0.1, 1.0]
+model.geom_rgba[self.geom_id] = color
+El método deberá ejecutarse durante la actualización de la simulación para que el cambio de
+color pueda observarse directamente en la ventana de MuJoCo.
+Por ejemplo:
+horno.aumentar_temperatura(1.0)
+horno.actualizar_color(model)
+No es obligatorio utilizar exactamente estos valores de temperatura ni estos colores. El grupo
+puede definir otros intervalos siempre que exista una relación coherente entre la temperatura y la
+representación visual.
+La clase deberá mantener encapsulada la lógica asociada al horno, evitando que la temperatura
+y el color se gestionen mediante variables globales.
+4.7. Clase PlantaIndustrial
+La clase PlantaIndustrial deberá actuar como elemento coordinador del sistema.
+Deberá contener o gestionar las instancias de:
+cintas,
+cámaras,
+objetos,
+horno,
+simulación MuJoCo,
+robot.
+7
+La función procedural run() deberá reducirse considerablemente o transformarse en métodos
+de esta clase.
+Por ejemplo:
+class PlantaIndustrial:
+def __init__(self):
+self.cintas = []
+self.camaras = []
+self.objetos = []
+self.horno = Horno()
+def inicializar(self):
+...
+def actualizar(self):
+...
+def procesar_teclado(self):
+...
+def ejecutar(self):
+...
+5. Robot Franka Emika Panda
+El código suministrado contiene un robot Franka Emika Panda y funcionalidad de cinemática
+inversa (IK).
+La implementación de la cinemática inversa NO forma parte de esta práctica.
+El alumnado recibe la IK ya implementada y puede utilizarla como un componente existente.
+Por tanto:
+No se evaluará el desarrollo matemático de la IK.
+No es necesario modificar el algoritmo de IK.
+No es necesario implementar un nuevo solucionador cinemático.
+La IK puede utilizarse como una “caja negra” proporcionada.
+El objetivo de esta práctica es la refactorización orientada a objetos de los elementos
+de la planta.
+La integración avanzada del robot y la utilización de la IK se abordarán posteriormente.
+6. Ejemplo de posible refactorización
+La siguiente figura muestra una posible organización. No es la única solución válida.
+Una posible secuencia de interacción sería:
+8
+Figura 2: Ejemplo de posible refactorización orientada a objetos de la planta industrial.
+La pieza avanza por la cinta
+La cámara captura una imagen
+OpenCV detecta el contorno
+Se determina la forma
+objeto_detectado = True
+cinta.detener()
+7. Restricciones de diseño
+Se deberán respetar las siguientes condiciones:
+1. No se aceptará una solución en la que simplemente se introduzca todo el código existente
+dentro de una única clase.
+2. Cada clase deberá tener una responsabilidad clara.
+3. Se deberá reducir al mínimo razonable el uso de variables globales.
+9
+4. Las cintas deberán controlarse mediante objetos.
+5. Las cámaras deberán ser objetos independientes.
+6. La detección visual deberá realizarse dentro de la clase de cámara o mediante una clase
+específica de visión utilizada por esta.
+7. La cámara deberá determinar la forma de las piezas.
+8. La detección de una pieza deberá activar una variable booleana.
+9. Dicha variable deberá permitir detener la cinta correspondiente.
+10. La aplicación deberá continuar ejecutándose en MuJoCo.
+11. Se deberá mantener la visualización de las cámaras mediante OpenCV.
+12. El horno deberá gestionar su temperatura mediante atributos y métodos propios.
+13. El color del horno deberá cambiar en MuJoCo en función de su temperatura.
+14. La cinemática inversa del robot no deberá ser reimplementada.
+8. Estructura orientativa del proyecto
+Una posible estructura de archivos sería:
+planta_industrial/
+|
++-- main.py
++-- requirements.txt
+|
++-- src/
+|
++-- __init__.py
++-- planta.py
++-- cinta_transportadora.py
++-- camara_inspeccion.py
++-- objeto_industrial.py
++-- horno.py
++-- robot.py
+En esta organización, main.py debe permanecer en la raíz del proyecto y actuar únicamente
+como punto de entrada de la aplicación. Las clases y módulos que implementan la lógica de la
+planta deberán ubicarse dentro del directorio src/.
+Por ejemplo, desde main.py se podrán importar las clases mediante:
+from src.planta import PlantaIndustrial
+def main():
+planta = PlantaIndustrial()
+planta.ejecutar()
+if __name__ == "__main__":
+main()
+No es obligatorio utilizar exactamente estos nombres de archivo, pero sí se deberá mantener
+una organización equivalente: el programa principal separado de las clases y la lógica de negocio.
+10
+9. Pruebas mínimas
+Antes de entregar, se deberá comprobar como mínimo que:
+1. La simulación MuJoCo arranca correctamente.
+2. Las cintas pueden arrancarse y detenerse.
+3. Cada cinta mantiene su propio estado.
+4. Las cámaras capturan correctamente.
+5. La imagen puede visualizarse mediante OpenCV.
+6. La cámara es capaz de detectar al menos las formas principales presentes en la simulación.
+7. La detección modifica correctamente la variable booleana.
+8. Cuando objeto_detectado == True, la cinta correspondiente se detiene.
+9. Cuando la condición de parada desaparece, el diseño permite decidir de forma controlada si
+la cinta debe reanudarse.
+10. La temperatura del horno puede modificarse correctamente.
+11. El color del horno cambia en MuJoCo de acuerdo con la temperatura configurada.
+12. El robot puede seguir utilizando la IK proporcionada sin que el alumnado tenga que imple
+mentarla.
+10. Contenido del informe
+El informe deberá describir el trabajo realizado y deberá incluir, como mínimo:
+1. Introducción breve.
+2. Descripción del problema.
+3. Análisis del código procedural inicial.
+4. Clases diseñadas.
+5. Responsabilidad de cada clase.
+6. Principales atributos y métodos.
+7. Diagrama de clases o diagrama equivalente.
+8. Explicación del mecanismo de detección de formas.
+9. Explicación de la variable booleana utilizada para detener la cinta.
+10. Explicación de la clase Horno, incluyendo el control de temperatura y el cambio de color en
+MuJoCo.
+11. Capturas de la simulación funcionando.
+12. Discusión de las principales decisiones de diseño.
+13. Conclusiones.
+14. Enlace al repositorio GitHub que contiene el código completo del proyecto.
+11
+11. Entrega
+Fecha límite de entrega: 2 de noviembre de 2026 y la evaluacion de la practica se
+railizara el dia 3 de noviembre siguiendo el orden de lista publicado en la ubu virtual..
+La entrega deberá realizarse exclusivamente mediante UBUVirtual.
+Formato obligatorio
+El informe deberá realizarse utilizando exclusivamente la plantilla LATEX disponible en
+UBUVirtual.
+Importante
+Solo se aceptará el informe en formato PDF.
+El PDF deberá haberse generado utilizando la plantilla LATEX proporcionada
+en UBUVirtual.
+No se aceptará ningún otro formato de informe.
+En el informe deberá aparecer obligatoriamente el enlace al repositorio GitHub.
+No se deben subir archivos de código fuente a UBUVirtual.
+No se aceptará la entrega del código como archivo ZIP, Python u otro
+formato.
+El código se consultará exclusivamente mediante el enlace al repositorio GitHub
+indicado en el PDF.
+No se aceptarán entregas por correo electrónico.
+La entrega será válida únicamente cuando el PDF haya sido enviado correctamente
+mediante UBUVirtual antes de la fecha límite.
+12. Relación con la Práctica II
+Esta práctica constituye la base software de la Práctica II.
+Por tanto, se recomienda desarrollar una arquitectura que permita posteriormente:
+añadir nuevos sensores,
+incorporar nuevos algoritmos de visión,
+modificar decisiones de control,
+integrar comportamientos del robot,
+añadir clasificación o selección de piezas,
+coordinar diferentes elementos de la planta.
+Una mala separación de responsabilidades en esta práctica dificultará considerablemente el
+desarrollo posterior.
+El objetivo final no es únicamente “hacer que el programa funcione”, sino aprender a construir
+una arquitectura de software que pueda evolucionar.
+12
+13. Resumen
+La práctica parte de una planta industrial funcional desarrollada de manera procedural y pide
+transformarla en una arquitectura orientada a objetos.
+La idea principal puede resumirse como:
+Código procedural funcional −→ objetos con responsabilidades −→ base
+modular para la Práctica II
+14. Evaluación de la práctica
+La Práctica I es obligatoria y corresponde a los contenidos de los Temas 1, 2 y 3 de la
+asignatura.
+La práctica tendrá un peso total del 15 % de la calificación final de la asignatura, distribuido
+de la siguiente forma:
+Elemento evaluado
+Peso
+Corrección y funcionamiento del código desarrollado
+Presentación oral de la práctica y evaluación in situ del código
+desarrollado
+3 %
+7 %
+Total Práctica I
+10 %
+14.1. Corrección del código– 3 %
+Se evaluará el código disponible en el repositorio GitHub indicado en el informe. Se tendrá en
+cuenta especialmente:
+Correcto funcionamiento de la simulación en MuJoCo.
+Refactorización efectiva del código procedural mediante POO.
+Correcta definición y utilización de las clases solicitadas.
+Encapsulación de atributos y responsabilidades.
+Reducción del uso de variables globales.
+Organización modular del proyecto mediante el directorio src/.
+Funcionamiento independiente de las cintas transportadoras.
+Captura y procesamiento de imágenes mediante las cámaras.
+Detección de las formas geométricas mediante OpenCV.
+Funcionamiento de la variable objeto_detectado.
+Parada automática de la cinta correspondiente cuando se detecta una pieza.
+Implementación de la clase Horno.
+Control de la temperatura del horno.
+Modificación visual del color del horno en MuJoCo en función de su temperatura.
+Mantenimiento de la funcionalidad proporcionada para el robot Franka Emika Panda y su
+IK.
+Claridad, legibilidad y organización general del código.
+13
+14.2. Presentación oral y evaluación in situ– 7 %
+La evaluación de la práctica se realizará de forma presencial el 3 de noviembre de 2026,
+siguiendo el orden de lista publicado en UBUVirtual.
+Durante la evaluación, el alumnado deberá ejecutar su propio proyecto y demostrar directa
+mente el funcionamiento de la solución desarrollada.
+La evaluación incluirá:
+1. Presentación breve de la arquitectura desarrollada.
+El alumnado deberá explicar la organización general del proyecto, las clases implementadas
+y las relaciones existentes entre ellas.
+2. Demostración del funcionamiento de la planta.
+Se deberá ejecutar el programa y demostrar el funcionamiento de los principales elementos
+implementados durante la práctica.
+3. Explicación del código.
+El profesor podrá seleccionar cualquier parte relevante del código y solicitar al alumnado que
+explique:
+qué hace,
+por qué se ha implementado de esa forma,
+qué clase es responsable de dicha funcionalidad,
+qué atributos intervienen,
+qué métodos son utilizados,
+y cómo se comunican los diferentes objetos.
+4. Modificación in situ del código.
+Durante la evaluación se podrá solicitar una pequeña modificación del código desarrollado.
+El objetivo de esta modificación será comprobar que el alumnado comprende la arquitectura
+implementada y es capaz de modificarla razonadamente.
+La modificación podrá afectar, por ejemplo, a:
+un atributo de una clase,
+un método,
+el comportamiento de una cinta,
+una condición de detección,
+la interacción entre dos objetos,
+la temperatura del horno,
+o la representación visual de algún elemento en MuJoCo.
+5. Preguntas sobre Programación Orientada a Objetos.
+Se podrán realizar preguntas relacionadas con los conceptos utilizados en la práctica, espe
+cialmente:
+clases y objetos,
+atributos de instancia,
+métodos,
+self,
+14
+encapsulación,
+composición,
+modularidad,
+responsabilidades de las clases,
+y, cuando proceda, herencia.
+Importante
+La presentación oral y la evaluación in situ forman parte de la evaluación obligatoria de
+la práctica.
+El alumnado deberá ser capaz de explicar, ejecutar y modificar el código entregado.
+La correcta ejecución del programa por sí sola no será suficiente: se evaluará también la
+comprensión de la solución implementada y de los conceptos de Programación Orientada
+a Objetos utilizados en su desarrollo

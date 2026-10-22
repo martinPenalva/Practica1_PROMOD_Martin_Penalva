@@ -1,0 +1,284 @@
+<mujoco model="square_conveyor_factory">
+    <compiler angle="degree" autolimits="true"/>
+    <option timestep="0.002" gravity="0 0 -9.81" integrator="RK4"/>
+
+    <visual>
+        <global offwidth="1280" offheight="960"/>
+        <quality shadowsize="2048"/>
+        <headlight ambient="0.35 0.35 0.35" diffuse="0.8 0.8 0.8" specular="0.2 0.2 0.2"/>
+    </visual>
+
+    <default>
+        <geom contype="1" conaffinity="1" friction="1.2 0.02 0.002" condim="4"/>
+        <joint damping="0.15"/>
+    </default>
+
+    <asset>
+        <texture name="floor_tex" type="2d" builtin="checker"
+                 rgb1="0.18 0.20 0.22" rgb2="0.23 0.25 0.27" width="512" height="512"/>
+        <material name="floor_mat" texture="floor_tex" texrepeat="8 8" reflectance="0.10"/>
+        <material name="belt_mat" rgba="0.08 0.10 0.12 1"/>
+        <material name="belt_edge_mat" rgba="0.28 0.32 0.36 1"/>
+        <material name="transfer_mat" rgba="0.18 0.20 0.23 1"/>
+        <material name="camera_mat" rgba="0.07 0.07 0.08 1"/>
+        <material name="pole_mat" rgba="0.30 0.33 0.36 1"/>
+        <material name="roller_mat" rgba="0.13 0.15 0.17 1"/>
+        <material name="island_mat" rgba="0.24 0.28 0.31 1"/>
+        <material name="island_panel_mat" rgba="0.10 0.38 0.52 1"/>
+        <material name="oven_mat" rgba="0.22 0.24 0.26 1"/>
+        <material name="oven_dark_mat" rgba="0.06 0.06 0.07 1"/>
+        <material name="oven_hot_mat" rgba="0.95 0.22 0.05 1" emission="0.8"/>
+    </asset>
+
+    <worldbody>
+        <light pos="0 0 6" dir="0 0 -1" diffuse="0.85 0.85 0.85"/>
+        <light pos="3 -3 4" dir="-0.5 0.5 -1" diffuse="0.45 0.45 0.45"/>
+        <geom name="floor" type="plane" size="6 6 0.1" material="floor_mat"/>
+
+        <!-- CINTA 1: INFERIOR, flujo +X -->
+        <geom name="belt_bottom" type="box" pos="0 -1.45 0.12"
+              size="1.45 0.28 0.06" material="belt_mat"/>
+        <geom type="box" pos="0 -1.135 0.22"
+              size="1.11 0.035 0.1" material="belt_edge_mat"/>
+        <geom type="box" pos="0 -1.765 0.22"
+              size="1.11 0.035 0.1" material="belt_edge_mat"/>
+
+        <!-- CINTA 2: DERECHA, flujo +Y -->
+        <geom name="belt_right" type="box" pos="1.45 0 0.12"
+              size="0.28 1.45 0.06" material="belt_mat"/>
+        <geom type="box" pos="1.135 0 0.22"
+              size="0.035 1.11 0.1" material="belt_edge_mat"/>
+        <geom type="box" pos="1.765 0 0.22"
+              size="0.035 1.11 0.1" material="belt_edge_mat"/>
+
+        <!-- CINTA 3: SUPERIOR, flujo -X -->
+        <geom name="belt_top" type="box" pos="0 1.45 0.12"
+              size="1.45 0.28 0.06" material="belt_mat"/>
+        <geom type="box" pos="0 1.135 0.22"
+              size="1.11 0.035 0.1" material="belt_edge_mat"/>
+        <geom type="box" pos="0 1.765 0.22"
+              size="1.11 0.035 0.1" material="belt_edge_mat"/>
+
+        <!-- CINTA 4: IZQUIERDA, flujo -Y -->
+        <geom name="belt_left" type="box" pos="-1.45 0 0.12"
+              size="0.28 1.45 0.06" material="belt_mat"/>
+
+        <!-- Barandilla interior de Cinta 4: abierta delante de la isla robotizada. -->
+        <geom type="box" pos="-1.135 0.915 0.22"
+              size="0.035 0.195 0.1" material="belt_edge_mat"/>
+        <geom type="box" pos="-1.135 -0.605 0.22"
+              size="0.035 0.505 0.1" material="belt_edge_mat"/>
+
+        <!-- La barandilla exterior queda abierta en y=0: esa abertura ya no
+             hace el desvío; sirve solo como paso hacia la Cinta 5. -->
+        <geom type="box" pos="-1.765 0.745 0.22"
+              size="0.035 0.365 0.1" material="belt_edge_mat"/>
+        <geom type="box" pos="-1.765 -0.745 0.22"
+              size="0.035 0.365 0.1" material="belt_edge_mat"/>
+
+        <!-- CINTA 5: RAMA LATERAL HACIA EL HORNO, flujo -X. -->
+        <geom name="belt_oven" type="box" pos="-2.55 0 0.12"
+              size="1.15 0.32 0.06" material="belt_mat"/>
+        <geom name="branch_transfer" type="box" pos="-1.45 0 0.12"
+              size="0.34 0.32 0.06" material="transfer_mat"/>
+
+        <!-- Las guías de Cinta 5 empiezan después de la zona de descarga del
+             robot. Así el cubo no cae contra una pared al ser depositado. -->
+        <geom type="box" pos="-2.74 -0.355 0.22"
+              size="0.74 0.035 0.1" material="belt_edge_mat"/>
+        <geom type="box" pos="-2.74 0.355 0.22"
+              size="0.74 0.035 0.1" material="belt_edge_mat"/>
+
+        <!-- ISLA ROBOTIZADA. La plataforma es baja y queda alineada con la
+             intersección Cinta 4 / Cinta 5. El Panda se adjunta después con MjSpec. -->
+        <body name="process_island" pos="-1.02 0.20 0">
+            <geom name="island_base" type="box" pos="0 0 0.08"
+                  size="0.18 0.38 0.08"
+                  material="island_mat" contype="0" conaffinity="0"/>
+            <geom name="island_panda_plate" type="cylinder" pos="0 0 0.185"
+                  size="0.16 0.025" material="belt_edge_mat" contype="0" conaffinity="0"/>
+        </body>
+
+        <!-- HORNO INDUSTRIAL AL FINAL DE LA RAMA -->
+        <body name="oven" pos="-4.05 0 0">
+            <!-- base y fondo -->
+            <geom type="box" pos="0 0 0.12" size="0.55 0.62 0.10" material="oven_mat"/>
+            <geom type="box" pos="-0.50 0 0.68" size="0.08 0.62 0.58" material="oven_mat"/>
+            <!-- paredes laterales, dejando el frontal abierto hacia +X -->
+            <geom type="box" pos="0 -0.56 0.68" size="0.55 0.06 0.58" material="oven_mat"/>
+            <geom type="box" pos="0  0.56 0.68" size="0.55 0.06 0.58" material="oven_mat"/>
+            <geom type="box" pos="0 0 1.23" size="0.55 0.62 0.07" material="oven_mat"/>
+            <!-- marco frontal -->
+            <geom type="box" pos="0.50 -0.48 0.68" size="0.05 0.08 0.58" material="oven_dark_mat"/>
+            <geom type="box" pos="0.50  0.48 0.68" size="0.05 0.08 0.58" material="oven_dark_mat"/>
+            <geom type="box" pos="0.50 0 1.16" size="0.05 0.40 0.10" material="oven_dark_mat"/>
+            <!-- interior incandescente visible desde la cinta -->
+            <geom name="oven_hot_geom" type="box" pos="-0.42 0 0.58" size="0.025 0.39 0.31" material="oven_hot_mat" contype="0" conaffinity="0"/>
+            <light pos="-0.18 0 0.82" dir="1 0 -0.15" diffuse="1.0 0.25 0.05"/>
+        </body>
+
+        <!-- TRANSFERENCIAS EN LAS CUATRO ESQUINAS -->
+        <geom name="corner_br" type="box" pos=" 1.45 -1.45 0.12"
+              size="0.28 0.28 0.06" material="transfer_mat"/>
+        <geom name="corner_tr" type="box" pos=" 1.45  1.45 0.12"
+              size="0.28 0.28 0.06" material="transfer_mat"/>
+        <geom name="corner_tl" type="box" pos="-1.45  1.45 0.12"
+              size="0.28 0.28 0.06" material="transfer_mat"/>
+        <geom name="corner_bl" type="box" pos="-1.45 -1.45 0.12"
+              size="0.28 0.28 0.06" material="transfer_mat"/>
+
+        <!-- RODILLOS VISUALES: 2 POR CINTA -->
+        <body name="roller_b1" pos="-1.15 -1.45 0.20">
+            <joint name="jr_b1" type="hinge" axis="0 1 0"/>
+            <geom type="cylinder" size="0.08 0.25" euler="90 0 0" material="roller_mat" contype="0" conaffinity="0"/>
+        </body>
+        <body name="roller_b2" pos="1.15 -1.45 0.20">
+            <joint name="jr_b2" type="hinge" axis="0 1 0"/>
+            <geom type="cylinder" size="0.08 0.25" euler="90 0 0" material="roller_mat" contype="0" conaffinity="0"/>
+        </body>
+
+        <body name="roller_r1" pos="1.45 -1.15 0.20">
+            <joint name="jr_r1" type="hinge" axis="1 0 0"/>
+            <geom type="cylinder" size="0.08 0.25" euler="0 90 0" material="roller_mat" contype="0" conaffinity="0"/>
+        </body>
+        <body name="roller_r2" pos="1.45 1.15 0.20">
+            <joint name="jr_r2" type="hinge" axis="1 0 0"/>
+            <geom type="cylinder" size="0.08 0.25" euler="0 90 0" material="roller_mat" contype="0" conaffinity="0"/>
+        </body>
+
+        <body name="roller_t1" pos="1.15 1.45 0.20">
+            <joint name="jr_t1" type="hinge" axis="0 1 0"/>
+            <geom type="cylinder" size="0.08 0.25" euler="90 0 0" material="roller_mat" contype="0" conaffinity="0"/>
+        </body>
+        <body name="roller_t2" pos="-1.15 1.45 0.20">
+            <joint name="jr_t2" type="hinge" axis="0 1 0"/>
+            <geom type="cylinder" size="0.08 0.25" euler="90 0 0" material="roller_mat" contype="0" conaffinity="0"/>
+        </body>
+
+        <body name="roller_l1" pos="-1.45 1.15 0.20">
+            <joint name="jr_l1" type="hinge" axis="1 0 0"/>
+            <geom type="cylinder" size="0.08 0.25" euler="0 90 0" material="roller_mat" contype="0" conaffinity="0"/>
+        </body>
+        <body name="roller_l2" pos="-1.45 -1.15 0.20">
+            <joint name="jr_l2" type="hinge" axis="1 0 0"/>
+            <geom type="cylinder" size="0.08 0.25" euler="0 90 0" material="roller_mat" contype="0" conaffinity="0"/>
+        </body>
+
+        <!-- Rodillos de la cinta hacia el horno. -->
+        <body name="roller_o1" pos="-2.18 0 0.20">
+            <joint name="jr_o1" type="hinge" axis="0 1 0"/>
+            <geom type="cylinder" size="0.08 0.25" euler="90 0 0" material="roller_mat" contype="0" conaffinity="0"/>
+        </body>
+        <body name="roller_o2" pos="-3.25 0 0.20">
+            <joint name="jr_o2" type="hinge" axis="0 1 0"/>
+            <geom type="cylinder" size="0.08 0.25" euler="90 0 0" material="roller_mat" contype="0" conaffinity="0"/>
+        </body>
+
+        <!-- CÁMARAS DE INSPECCIÓN: SOPORTE LATERAL + VISIÓN SOBRE LA BANDA -->
+        <!-- El poste permanece fuera de la cinta; un brazo corto sitúa el cabezal
+             óptico junto al borde. El FOV estrecho muestra casi exclusivamente
+             la superficie de la banda para visión artificial. -->
+        <body name="cam_station_bottom" pos="0 0 0">
+            <geom type="cylinder" pos="0 -2.18 0.46"
+                  size="0.025 0.46" material="pole_mat" contype="0" conaffinity="0"/>
+            <geom type="box" pos="0 -1.8649999999999998 0.92"
+                  size="0.025 0.315 0.022" material="pole_mat" contype="0" conaffinity="0"/>
+            <geom type="box" pos="0 -1.55 .92"
+                  size="0.075 0.055 0.055" material="camera_mat" contype="0" conaffinity="0"/>
+            <camera name="cam_bottom" pos="0 -1.55 .92"
+                    xyaxes="1.000000 0.000000 -0.000000 0.000000 0.990621 0.136637" fovy="32"/>
+        </body>
+
+        <body name="cam_station_right" pos="0 0 0">
+            <geom type="cylinder" pos="2.18 0 0.46"
+                  size="0.025 0.46" material="pole_mat" contype="0" conaffinity="0"/>
+            <geom type="box" pos="1.54 0 0.92"
+                  size="0.01 0.025 0.022" material="pole_mat" contype="0" conaffinity="0"/>
+            <geom type="box" pos="1.55 0 .92"
+                  size="0.055 0.075 0.055" material="camera_mat" contype="0" conaffinity="0"/>
+            <camera name="cam_right" pos="1.55 0 .92"
+                    xyaxes="0.000000 1.000000 0.000000 -0.990621 0.000000 0.136637" fovy="32"/>
+        </body>
+
+        <body name="cam_station_top" pos="0 0 0">
+            <geom type="cylinder" pos="0 2.18 0.46"
+                  size="0.025 0.46" material="pole_mat" contype="0" conaffinity="0"/>
+            <geom type="box" pos="0 1.54 0.92"
+                  size="0.025 0.01 0.022" material="pole_mat" contype="0" conaffinity="0"/>
+            <geom type="box" pos="0 1.55 .92"
+                  size="0.075 0.055 0.055" material="camera_mat" contype="0" conaffinity="0"/>
+            <camera name="cam_top" pos="0 1.55 .92"
+                    xyaxes="-1.000000 0.000000 0.000000 0.000000 -0.990621 0.136637" fovy="32"/>
+        </body>
+
+        <body name="cam_station_left" pos="0 0 0">
+            <geom type="cylinder" pos="-2.25 .82 0.46"
+                  size="0.025 0.46" material="pole_mat" contype="0" conaffinity="0"/>
+            <geom type="box" pos="-1.935 .82 0.92"
+                  size="0.005 0.025 0.022" material="pole_mat" contype="0" conaffinity="0"/>
+            <geom type="box" pos="-1.93 .82 .92"
+                  size="0.055 0.075 0.055" material="camera_mat" contype="0" conaffinity="0"/>
+            <camera name="cam_left" pos="-1.93 .82 .92"
+                    xyaxes="0.000000 -1.000000 0.000000 0.833815 0.000000 0.552043" fovy="32"/>
+        </body>
+
+        <!-- Cámara de inspección de la cinta 5 hacia el horno. -->
+        <body name="cam_station_oven" pos="0 0 0">
+            <geom type="cylinder" pos="-2.55 -.84 0.39"
+                  size="0.025 0.39" material="pole_mat" contype="0" conaffinity="0"/>
+            <geom type="box" pos="-2.55 -0.39 0.78"
+                  size="0.025 0.07 0.022" material="pole_mat" contype="0" conaffinity="0"/>
+            <geom type="box" pos="-2.55 -.46 .78"
+                  size="0.075 0.055 0.055" material="camera_mat" contype="0" conaffinity="0"/>
+            <camera name="cam_oven" pos="-2.55 -.46 .78"
+                    xyaxes="1.000000 0.000000 -0.000000 0.000000 0.786085 0.618118" fovy="34"/>
+        </body>
+
+        <!-- CÁMARA GENERAL DE LA PLANTA -->
+        <camera name="overview" pos="4.6 -4.6 5.2" xyaxes="0.707 0.707 0 -0.49 0.49 0.72" fovy="50"/>
+
+        <!-- OBJETOS -->
+        <body name="obj0" pos="-0.95 -1.45 .275">
+            <freejoint name="obj0_free"/>
+            <geom name="obj0_geom" type="box" size="0.085 0.085 0.085"
+                  mass="0.18" rgba="0.90 0.16 0.12 1"/>
+        </body>
+
+        <body name="obj1" pos="1.45 -0.70 .235">
+            <freejoint name="obj1_free"/>
+            <geom name="obj1_geom" type="cylinder" size="0.075 0.045"
+                  mass="0.08" rgba="0.12 0.45 0.95 1"/>
+        </body>
+
+        <body name="obj2" pos="0.55 1.45 .26">
+            <freejoint name="obj2_free"/>
+            <geom name="obj2_geom" type="box" size="0.10 0.07 0.07"
+                  mass="0.15" rgba="0.95 0.76 0.10 1"/>
+        </body>
+
+        <body name="obj3" pos="-1.45 0.45 .2275">
+            <freejoint name="obj3_free"/>
+            <geom name="obj3_geom" type="cylinder" size="0.085 0.0375"
+                  mass="0.085" rgba="0.18 0.75 0.30 1"/>
+        </body>
+
+        <body name="obj4" pos="0.15 -1.45 .255">
+            <freejoint name="obj4_free"/>
+            <geom name="obj4_geom" type="box" size="0.07 0.11 0.065"
+                  mass="0.14" rgba="0.72 0.28 0.90 1"/>
+        </body>
+    </worldbody>
+
+    <actuator>
+        <velocity name="belt_act_b1" joint="jr_b1" kv="3" ctrlrange="-9 9"/>
+        <velocity name="belt_act_b2" joint="jr_b2" kv="3" ctrlrange="-9 9"/>
+        <velocity name="belt_act_r1" joint="jr_r1" kv="3" ctrlrange="-9 9"/>
+        <velocity name="belt_act_r2" joint="jr_r2" kv="3" ctrlrange="-9 9"/>
+        <velocity name="belt_act_t1" joint="jr_t1" kv="3" ctrlrange="-9 9"/>
+        <velocity name="belt_act_t2" joint="jr_t2" kv="3" ctrlrange="-9 9"/>
+        <velocity name="belt_act_l1" joint="jr_l1" kv="3" ctrlrange="-9 9"/>
+        <velocity name="belt_act_l2" joint="jr_l2" kv="3" ctrlrange="-9 9"/>
+        <velocity name="belt_act_o1" joint="jr_o1" kv="3" ctrlrange="-9 9"/>
+        <velocity name="belt_act_o2" joint="jr_o2" kv="3" ctrlrange="-9 9"/>
+    </actuator>
+</mujoco>
