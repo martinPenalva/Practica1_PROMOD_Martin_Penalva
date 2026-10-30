@@ -1,0 +1,388 @@
+PRESENTACION - RESUMEN DE LOS ARCHIVOS PYTHON
+================================================
+
+Guia para estudiar y explicar la practica. Se describen los archivos Python
+propios del proyecto; se excluye la carpeta vendor, que contiene codigo de
+terceros.
+
+IDEA GENERAL DEL PROYECTO
+-------------------------
+La practica simula una planta industrial con cinco cintas transportadoras,
+piezas, camaras de inspeccion, un horno y un robot Franka Panda. MuJoCo calcula
+la simulacion fisica y OpenCV muestra las imagenes de las camaras.
+
+La entrada principal es main.py. Este inicia la version orientada a objetos de
+la planta, definida en src/planta_industrial.py. Los archivos planta_4_cintas.py
+y robot.py contienen buena parte de la simulacion y del control del robot. En
+particular, planta_4_cintas.py conserva tambien una version procedural antigua
+y definiciones de clases mas sencillas.
+
+
+1. main.py
+----------
+Es el punto de entrada de la aplicacion.
+
+Funcion:
+- main(): crea una PlantaIndustrial y llama a ejecutar() para iniciar la
+  simulacion.
+
+La condicion __name__ == "__main__" hace que main() se ejecute cuando este
+archivo se inicia directamente.
+
+
+2. src/__init__.py
+------------------
+Convierte src en un paquete de Python y facilita el acceso a las clases
+principales mediante importaciones. Exporta CintaTransportadora,
+CamaraInspeccion, ObjetoIndustrial, Cilindro, Caja, Horno, RobotPanda y
+PlantaIndustrial. No define clases ni metodos.
+
+
+3. src/objeto_industrial.py
+---------------------------
+Define las piezas que se mueven por la planta.
+
+Clase ObjetoIndustrial:
+- __init__(): guarda el identificador, la forma, el segmento de cinta y la
+  posicion inicial. Tambien inicializa la orientacion y marca la pieza como no
+  procesada; comprueba que la posicion tenga tres coordenadas.
+- actualizar(desplazamiento): suma el desplazamiento recibido a las
+  coordenadas x, y, z de la pieza.
+- mover(desplazamiento): alias de actualizar(); mueve la pieza aplicando ese
+  desplazamiento.
+- cambiar_segmento(segmento): cambia el numero del segmento donde esta la
+  pieza.
+- obtener_pose(): devuelve la posicion y la orientacion actuales juntas.
+- __repr__(): crea una representacion en texto util para depurar o mostrar la
+  pieza.
+
+Clase Cilindro (hereda de ObjetoIndustrial):
+- __init__(): crea una pieza usando la forma "cilindro" y delega el resto de
+  la inicializacion a ObjetoIndustrial.
+
+Clase Caja (hereda de ObjetoIndustrial):
+- __init__(): crea una pieza con forma "cubo" y delega el resto de la
+  inicializacion a ObjetoIndustrial.
+
+
+4. src/cinta_transportadora.py
+------------------------------
+Modela el estado y el movimiento de una cinta.
+
+Clase CintaTransportadora:
+- __init__(): guarda nombre, velocidad, direccion y estado inicial. Tambien
+  crea la lista de objetos que estan sobre la cinta y valida la direccion.
+- iniciar(): pone la cinta en marcha.
+- arrancar(): otra forma de llamar a iniciar().
+- detener(): para la cinta.
+- conmutar(): cambia el estado de activa a parada o viceversa y devuelve el
+  nuevo estado.
+- esta_activa(): devuelve True si la cinta esta en marcha.
+- agregar_objeto(objeto): incorpora el objeto a la lista si no estaba ya.
+- quitar_objeto(objeto): elimina el objeto si esta en la lista.
+- actualizar(dt): si la cinta esta activa, desplaza cada objeto segun la
+  direccion, la velocidad y el intervalo dt. Rechaza intervalos negativos.
+- mover_objetos(): ejecuta actualizar() con el intervalo predeterminado.
+- __repr__(): devuelve un resumen en texto con nombre, velocidad y estado.
+
+
+5. src/camara_inspeccion.py
+---------------------------
+Representa una camara que puede capturar imagenes y reconocer formas.
+
+Clase CamaraInspeccion:
+- __init__(): almacena nombre, cinta asociada, umbral y resolucion; prepara
+  tambien el estado de deteccion y el registro de piezas inspeccionadas.
+- capturar(renderer, data): si recibe datos de MuJoCo, actualiza la escena de
+  la camara, renderiza y convierte la imagen a BGR. Si no, usa directamente el
+  valor recibido como imagen. Guarda y devuelve la ultima imagen.
+- detectar_forma(imagen): analiza la imagen con OpenCV. Filtra por color,
+  busca contornos y clasifica el mayor contorno valido como triangulo,
+  cuadrado, rectangulo o circulo. Devuelve None si no encuentra una forma.
+- inspeccionar(objeto): registra la forma de una pieza del modelo logico,
+  actualiza el estado de deteccion y detiene la cinta asociada.
+- procesar(imagen, detener_cinta): detecta la forma en la imagen indicada o en
+  la ultima capturada; puede detener la cinta cuando encuentra una pieza.
+- actualizar(renderer, data, detener_cinta): realiza la captura y el
+  procesamiento de una imagen en un solo paso.
+- __repr__(): devuelve un resumen con el nombre de la camara, la cinta y el
+  estado de deteccion.
+
+
+6. src/horno.py
+---------------
+Representa el horno, su temperatura y las piezas pendientes de procesar.
+
+Clase Horno:
+- __init__(): inicializa nombre, temperatura y limites termicos; tambien
+  prepara contadores, estado, color, identificador grafico y cola de piezas.
+- numero_piezas (propiedad): permite consultar o modificar el contador de
+  piezas mediante una propiedad.
+- estado (propiedad): informa si el horno esta ocupado, activo o inactivo;
+  al asignarlo, actualiza el indicador de actividad.
+- registrar_pieza(pieza): agrega una pieza a la cola, aumenta el contador,
+  activa el horno y actualiza su color.
+- aumentar_temperatura(incremento): sube la temperatura sin superar el maximo
+  permitido y actualiza el color.
+- disminuir_temperatura(decremento): baja la temperatura sin atravesar el
+  minimo permitido y actualiza el color.
+- actualizar_color(model): asigna azul, naranja o rojo segun la temperatura.
+  Si se facilita un modelo, actualiza tambien el color visual de MuJoCo.
+- actualizar_color_mujoco(model): aplica al elemento grafico del horno el
+  color que corresponde a su temperatura.
+- actualizar(incremento, model): simula un ciclo del horno. Si tiene piezas,
+  aumenta la temperatura y procesa una al llegar a 180 grados; si esta vacio,
+  se enfria.
+- procesar_pieza(pieza): cuando se alcanza la temperatura necesaria, saca una
+  pieza de la cola (o procesa la indicada), la marca como procesada y actualiza
+  los contadores.
+- obtener_temperatura(): devuelve la temperatura actual.
+- __repr__(): muestra nombre, cantidad de piezas, temperatura y estado.
+
+
+7. src/RobotPanda.py
+--------------------
+Es la adaptacion orientada a objetos del controlador del robot definido en
+robot.py.
+
+Clase RobotPanda:
+- __init__(velocidad): prepara las poses, la velocidad, el estado de la
+  pinza y las referencias al modelo MuJoCo. Rechaza velocidades no positivas.
+- inicializar(model, data, robot_ids, robot_state): conecta el robot con el
+  modelo y los datos de MuJoCo e inicializa el controlador.
+- controlar_manual(gripper_open): valida la conexion y solicita el control
+  manual por cinemática inversa.
+- actualizar_ciclo_automatico(...): actualiza la maquina de estados de
+  recogida y colocacion, mueve el robot con cinemática inversa y mantiene la
+  pieza agarrada junto a la pinza.
+- seguir_pieza(): hace que la pieza agarrada siga el TCP del robot.
+- sincronizar_pose(config): copia a la clase la posicion actual del TCP y la
+  posicion objetivo del controlador.
+- _validar_vinculo(): comprueba que el robot se haya inicializado y este
+  conectado a un modelo MuJoCo; si no, comunica el error.
+- mover_a(pose): valida y establece una posicion objetivo x, y, z.
+- coger_pieza(pieza): si la pinza esta libre, fija la pieza como agarrada,
+  mueve el objetivo a su posicion y la retira del segmento de cinta.
+- colocar_pieza(destino): deposita la pieza agarrada en un horno, una cinta o
+  un objeto con posicion; despues libera la pinza.
+- actualizar(dt): aproxima la posicion actual a la objetivo segun velocidad
+  e intervalo de tiempo, si la cinemática inversa esta activa.
+
+
+8. src/planta_industrial.py
+---------------------------
+Coordina los elementos de la version orientada a objetos y la simulacion
+MuJoCo.
+
+Clase PlantaIndustrial:
+- __init__(mostrar_visor, mostrar_camaras): crea cinco cintas y cinco camaras,
+  prepara las piezas, horno y robot, y reserva el estado necesario para la
+  simulacion, inspeccion y controles.
+- inicializar(): construye o prepara el modelo MuJoCo, crea sus datos,
+  inicializa robot y piezas, configura el horno y rodillos y abre las ventanas
+  de visualizacion solicitadas.
+- _actualizar_objetos(): sincroniza las posiciones y segmentos logicos de las
+  piezas con sus posiciones fisicas en MuJoCo y las asocia a sus cintas.
+- estado_cintas(): devuelve una lista con el estado de marcha de las cinco
+  cintas.
+- conmutar_cinta(numero): enciende o para la cinta seleccionada por el usuario
+  y actualiza los rodillos, respetando las paradas de inspeccion.
+- _actualizar_rodillos(): establece los controles de los actuadores de los
+  rodillos segun el estado de cada cinta.
+- _actualizar_transporte(): calcula las fuerzas de transporte de las piezas,
+  mueve cada una segun su segmento y estado de cinta, y gestiona su llegada al
+  horno o su recolocacion si sale de la zona valida.
+- _actualizar_camaras(): obtiene imagenes de las camaras y detiene brevemente
+  una cinta al detectar una pieza, salvo que haya una parada manual.
+- _crear_mosaico(imagenes): anade etiquetas a las imagenes de las camaras,
+  agrega la vista general y las organiza en una unica imagen.
+- actualizar(): ejecuta un paso de la simulacion: controla robot y transporte,
+  avanza MuJoCo, actualiza horno, piezas y pose del robot. No hace nada si la
+  simulacion esta pausada.
+- procesar_teclado(tecla): interpreta las teclas para salir, pausar, cambiar
+  cintas, ajustar temperatura, reiniciar o guardar una captura. En modo de
+  prueba del robot tambien permite seleccionar objetivos de cinemática inversa.
+- ejecutar(max_frames): inicializa y ejecuta el bucle principal, actualiza
+  visor y camaras y limita cada iteracion al tiempo de simulacion. Al terminar,
+  cierra los recursos.
+- cerrar(): cierra el visor, renderer y ventanas de OpenCV.
+
+
+9. robot.py
+------------
+Modulo procedural que integra el modelo Franka Panda en MuJoCo, calcula
+movimientos por cinemática inversa y coordina la recogida y colocacion de
+piezas. No define clases; sus funciones son utilizadas tambien por
+RobotPanda y PlantaIndustrial.
+
+Funciones de configuracion e integracion:
+- make_config(lane, branch_y, branch_speed): crea las coordenadas y parametros
+  que necesita el robot para recoger piezas y depositarlas en la cinta que va
+  al horno.
+- find_franka_model(): busca el archivo panda.xml en las rutas locales
+  habituales o en la ruta indicada por una variable de entorno.
+- download_franka_model(): descarga una copia sparse del modelo oficial si no
+  encuentra una copia local; comunica un error si no puede hacerlo.
+- yaw_quaternion(degrees): convierte un angulo yaw a un quaternion de MuJoCo.
+- build_model_with_franka(plant_xml, cfg): combina el modelo de la planta con
+  el Panda y prepara el TCP y el marcador del objetivo antes de compilar el
+  modelo.
+- get_robot_ids(model): busca y devuelve los identificadores de articulaciones,
+  actuadores, pinza, TCP y dedos dentro del modelo.
+- new_robot_state(): crea el diccionario con el estado inicial del robot,
+  objetivos, pieza agarrada e informacion de la cinemática inversa.
+- initialize_robot(model, data, robot_ids, robot_state): coloca el Panda en
+  su postura inicial, abre la pinza y guarda su pose de referencia.
+
+Funciones de cinemática inversa y objetivos:
+- rpy_deg_to_matrix(rpy_deg): convierte angulos roll, pitch y yaw a una matriz
+  de rotacion.
+- normalize_quaternion_wxyz(quat): normaliza un quaternion y rechaza el
+  quaternion de norma cero.
+- quaternion_wxyz_to_matrix(quat): convierte un quaternion a una matriz de
+  rotacion.
+- set_ik_target_rpy(...): define la posicion y orientacion objetivo del TCP
+  mediante angulos RPY y activa el modo de cinemática inversa.
+- set_ik_target_quat(...): define el objetivo del TCP usando posicion y
+  quaternion.
+- set_ik_target_home(...): usa como objetivo la pose del TCP guardada al
+  inicializar el robot.
+- pose_errors(...): calcula la diferencia de posicion y orientacion entre el
+  TCP actual y el objetivo.
+- control_pose_ik(...): calcula un paso de control diferencial para acercar el
+  TCP al objetivo, limita la velocidad articular y respeta los limites de las
+  articulaciones.
+- control_manual_ik(...): controla el TCP hacia el objetivo manual y abre o
+  cierra la pinza; devuelve si el objetivo se ha alcanzado.
+- ik_target_text(robot_state): convierte el objetivo de cinemática inversa en
+  texto para mostrarlo.
+
+Funciones de recogida, transporte y estados del robot:
+- robot_hold_force(pos, vel, cfg, max_force): frena una pieza suavemente en la
+  posicion de recogida del robot.
+- watch_for_cube(...): busca una pieza elegible en la zona de recogida y la
+  reserva para el robot.
+- state_target_position(state_name, cfg): devuelve la posicion del TCP
+  correspondiente a la fase actual del ciclo robotico.
+- set_robot_state(robot_state, name, sim_time): cambia la fase del robot y
+  guarda el instante en que empezo.
+- tcp_position(data, robot_ids): obtiene la posicion actual del TCP.
+- robot_target_reached(...): comprueba si el TCP esta suficientemente cerca
+  del objetivo de la fase actual.
+- grasp_object(...): registra la pieza objetivo como agarrada y guarda el
+  desplazamiento entre la pieza y el TCP.
+- follow_tcp_with_grasped_object(...): actualiza la posicion de la pieza para
+  que siga el TCP mientras esta agarrada.
+- release_object_to_branch(...): deja la pieza sobre la cinta 5, le da
+  velocidad inicial y devuelve el control del transporte a la cinta.
+- rotation_error(current, desired): calcula el error de orientacion entre dos
+  matrices de rotacion.
+- control_robot_ik(...): calcula el movimiento del Panda para la fase
+  automatica actual y controla la pinza.
+- update_robot_state_machine(...): gestiona la secuencia completa de
+  aproximacion, recogida, elevacion, traslado, deposito y retorno; reinicia el
+  ciclo de forma segura si una fase tarda demasiado.
+
+
+10. planta_4_cintas.py
+----------------------
+Contiene la configuracion geometrica y la simulacion de la planta. Mantiene una
+version procedural anterior con clases sencillas y, principalmente, funciones
+que construyen y ejecutan la escena MuJoCo. Es usada por la version orientada a
+objetos como modulo auxiliar.
+
+Clases sencillas incluidas:
+
+Clase CintaTransportadora:
+- __init__(nombre, velocidad, direccion, activa): guarda configuracion y
+  estado de una cinta.
+- arrancar(): activa la cinta.
+- detener(): para la cinta.
+- conmutar(): invierte su estado y devuelve el nuevo estado.
+- esta_activa(): indica si esta en marcha.
+
+Clase ObjetoIndustrial:
+- __init__(identificador, forma, segmento, posicion, cuerpo_id): guarda la
+  identidad, forma, segmento, posicion y cuerpo fisico de una pieza.
+- cambiar_segmento(nuevo_segmento): actualiza el segmento de la pieza.
+- __repr__(): genera una descripcion breve de la pieza.
+
+Clase CamaraInspeccion:
+- __init__(nombre, cinta): relaciona la camara con una cinta e inicializa el
+  estado de deteccion.
+- actualizar(imagen): actualiza el estado usando la imagen recibida; si la
+  imagen no esta vacia, marca una deteccion y detiene la cinta. Esta clase
+  simple no hace el reconocimiento avanzado de la clase en src.
+
+Clase Horno:
+- __init__(nombre, temperatura_inicial, temperatura_min, temperatura_max):
+  inicializa temperatura, limites, contador y estado.
+- registrar_pieza(): incrementa el numero de piezas y marca el horno ocupado.
+- aumentar_temperatura(incremento): sube la temperatura sin pasar el maximo.
+- disminuir_temperatura(decremento): baja la temperatura sin pasar el minimo.
+- obtener_temperatura(): devuelve la temperatura actual.
+
+Clase PlantaIndustrial (version sencilla):
+- __init__(): crea cinco cintas, camaras, piezas y horno, y prepara sus
+  segmentos y contadores.
+- estado_cintas(): devuelve los estados de las cinco cintas.
+- conmutar_cinta(numero): invierte el estado de la cinta indicada.
+- actualizar(): recorre las cintas y actualiza las camaras de esta version
+  sencilla.
+- run(): delega la ejecucion en la funcion procedural run().
+
+Funciones auxiliares de geometria y escena:
+- camera_xyaxes(cam_pos, target): calcula los ejes de orientacion de una
+  camara para que mire al objetivo.
+- build_mjcf(): construye como texto el modelo MJCF de la planta, incluyendo
+  cintas, piezas, horno y camaras.
+- get_ids(model): obtiene los identificadores fisicos y las direcciones de
+  grados de libertad de las piezas.
+- reset_objects(model, data, segments): coloca las piezas en sus posiciones
+  iniciales y reinicia sus velocidades y segmentos.
+- lock_object_rotations(model, data): mantiene fijas las rotaciones de las
+  piezas cuando esa opcion esta activada.
+- lock_cylinders_to_belt_center(model, data, segments): centra los cilindros
+  sobre las cintas y evita que se desplacen lateralmente.
+- update_segment(pos, seg, obj_index): actualiza el segmento de una pieza
+  cuando cruza una esquina del circuito.
+
+Funciones de estado y movimiento de cintas:
+- cinta_activa(seg): devuelve si esta encendida la cinta asociada a un
+  segmento.
+- estado_cintas(): devuelve los estados de las cinco cintas.
+- conmutar_cinta(numero): cambia el estado de marcha de la cinta indicada.
+- transport_force(pos, vel, seg, cinta_encendida): calcula las fuerzas que
+  mueven la pieza por su cinta; aplica frenado si la cinta esta parada.
+- send_object_back_to_line(...): recoloca una pieza en la linea al llegar al
+  horno para mantener el flujo de la simulacion.
+- apply_transport(...): aplica las fuerzas a las piezas y gestiona el objeto
+  que recoge el robot, la llegada al horno y las piezas que salen del circuito.
+
+Funciones de imagen y rodillos:
+- add_label(image, text, status_text): dibuja titulos y estado sobre una
+  imagen.
+- render_camera_mosaic(...): captura las cinco camaras y la vista general,
+  anade informacion de estado y las combina en un mosaico.
+- initialize_belt_rollers(model, data): ajusta los actuadores de los rodillos
+  segun las banderas de marcha de las cintas.
+
+Funcion principal:
+- run(): construye e inicia la simulacion, actualiza el robot y las cintas en
+  un bucle, gestiona controles del teclado y cierra correctamente el visor y
+  las ventanas al salir.
+
+
+RESUMEN PARA RECORDARLO
+-----------------------
+- main.py arranca el programa.
+- PlantaIndustrial coordina la simulacion.
+- CintaTransportadora mueve las piezas.
+- ObjetoIndustrial representa cada pieza; Caja y Cilindro especializan su forma.
+- CamaraInspeccion captura imagenes y reconoce piezas.
+- Horno regula temperatura y procesa piezas.
+- RobotPanda adapta el controlador para integrarlo en la planta.
+- robot.py contiene la cinemática inversa y la secuencia automatica del Panda.
+- planta_4_cintas.py construye la escena y aporta la simulacion fisica,
+  controles, transporte y visualizacion.
+- src/__init__.py organiza y exporta las clases del paquete.
