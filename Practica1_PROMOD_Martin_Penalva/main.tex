@@ -430,9 +430,13 @@ inicialización, actualización física y cierre de ventanas.
 \subsection{Herencia}
 
 \texttt{Caja} y \texttt{Cilindro} heredan de \texttt{ObjetoIndustrial}. En esta
-implementación, las subclases especializan sobre todo el constructor fijando la
-forma, y reutilizan la identidad, segmento, posición, orientación y operaciones
-comunes definidas en la clase base.
+implementación, solo especializan el constructor para asignar una forma inicial
+y reutilizan la identidad, segmento, posición, orientación y operaciones
+comunes de la clase base. \texttt{PlantaIndustrial} después puede sustituir esa
+forma inicial según la configuración de cada pieza. Como las subclases no
+añaden comportamiento propio ni sobrescriben operaciones, su papel actual es
+principalmente ofrecer constructores específicos y servir de posible punto de
+extensión, no implementar reglas distintas para cada forma.
 
 \subsection{Polimorfismo}
 
@@ -456,15 +460,25 @@ captura periódica de cámaras.
 \subsection{Estructura del proyecto}
 
 \begin{itemize}
-    \item \texttt{main.py}: crea \texttt{PlantaIndustrial} y llama a \texttt{ejecutar()}.
-    \item \texttt{src/planta\_industrial.py}: coordinación del simulador y de sus componentes.
-    \item \texttt{src/cinta\_transportadora.py}, \texttt{src/camara\_inspeccion.py}, \texttt{src/objeto\_industrial.py} y \texttt{src/horno.py}: clases de dominio.
-    \item \texttt{src/robot.py}: adaptador orientado a objetos del controlador del Panda.
-    \item \texttt{src/planta.xml}: geometría, cuerpos y cámaras MuJoCo de la planta.
-    \item \texttt{planta\_4\_cintas.py}: constantes y funciones auxiliares físicas conservadas del simulador inicial.
-    \item \texttt{robot.py}: controlador IK reutilizado.
-    \item \texttt{requirements.txt}: dependencias Python; \texttt{README.md}: instalación, ejecución y controles.
-    \item \texttt{vendor/mujoco\_menagerie/}: modelo y recursos del Franka Panda.
+    \item \texttt{main.py}: punto de entrada; crea \texttt{PlantaIndustrial} y arranca la simulación.
+    \item \texttt{src/\_\_init\_\_.py}: declara el paquete y exporta las clases principales.
+    \item \texttt{src/planta\_industrial.py}: configura y coordina MuJoCo, las cintas, las cámaras, las piezas, el horno y el robot.
+    \item \texttt{src/cinta\_transportadora.py}: encapsula el estado, la velocidad y el movimiento de los objetos de cada cinta.
+    \item \texttt{src/camara\_inspeccion.py}: captura imágenes, detecta y clasifica formas, y comunica el estado de inspección a su cinta.
+    \item \texttt{src/objeto\_industrial.py}: define la clase base \texttt{ObjetoIndustrial} y sus subclases \texttt{Cilindro} y \texttt{Caja}, que reutilizan el estado y las operaciones comunes de las piezas.
+    \item \texttt{src/horno.py}: gestiona la temperatura, la cola y el procesamiento de piezas, y el color de la geometría del horno en MuJoCo.
+    \item \texttt{src/RobotPanda.py}: adapta el controlador IK existente para inicializar y controlar el Panda desde la planta.
+    \item \texttt{planta\_4\_cintas.py}: conserva la configuración y las funciones procedurales de la simulación original, reutilizadas para la física, el transporte y la representación.
+    \item \texttt{robot.py}: controlador procedural del Panda y cinemática inversa reutilizados por \texttt{src/RobotPanda.py}.
+    \item \texttt{vendor/mujoco\_menagerie/build\_registry.py}: comprueba los modelos MJCF y genera el registro de modelos de Menagerie.
+    \item \texttt{vendor/mujoco\_menagerie/catalog.py}: mantiene metadatos del catálogo de robots, como nombres, vistas previas y licencias.
+    \item \texttt{vendor/mujoco\_menagerie/format\_xml.py}: formatea archivos XML/MJCF.
+    \item \texttt{vendor/mujoco\_menagerie/generate\_gallery.py}: genera vistas previas y actualiza la galería de Menagerie.
+    \item \texttt{vendor/mujoco\_menagerie/regenerate\_license.py}: regenera el archivo de licencias de Menagerie a partir de las licencias de sus modelos.
+    \item Los cinco scripts de \texttt{vendor/mujoco\_menagerie/} son herramientas del repositorio incluido, no forman parte del arranque normal de la aplicación.
+    \item \texttt{src/planta.xml}: define la geometría, los cuerpos y las cámaras MuJoCo de la planta.
+    \item \texttt{requirements.txt}: recoge las dependencias Python; \texttt{README.md}: documenta instalación, ejecución y controles.
+    \item \texttt{vendor/mujoco\_menagerie/}: contiene el modelo Franka Panda y sus recursos.
 \end{itemize}
 
 \subsection{Clases y métodos principales}
@@ -476,6 +490,21 @@ ejecución. Además gestiona las teclas: \texttt{Q}/\texttt{Esc} para salir,
 \texttt{R} para reiniciar, \texttt{S} para guardar el mosaico y
 \texttt{T}/\texttt{H} para controlar la pose de prueba del robot cuando está
 activado el modo IK manual.
+
+\texttt{ObjetoIndustrial} es la clase base porque todas las piezas comparten
+identidad, forma, segmento, posición, orientación y estado de procesamiento, así
+como operaciones para actualizar su posición y consultar su pose. Las subclases
+\texttt{Cilindro} y \texttt{Caja} reutilizan esa implementación y ofrecen
+constructores que fijan una forma inicial (\texttt{"cilindro"} y
+\texttt{"cubo"}, respectivamente), evitando repetir la inicialización común al
+crear esos tipos de pieza. En la configuración actual, \texttt{PlantaIndustrial}
+construye las piezas con estas subclases, pero después asigna su forma según
+\texttt{FORMAS}; por eso la forma lógica final puede diferir de la forma inicial
+del constructor. Las subclases no añaden todavía comportamiento ni atributos
+propios. Esta separación resulta útil como punto de extensión si en el futuro
+cada tipo necesita propiedades o reglas específicas; si no se prevé esa
+diferencia, también bastaría con crear \texttt{ObjetoIndustrial} pasando la
+forma como argumento.
 
 \texttt{CintaTransportadora} mantiene su propio estado, velocidad y dirección.
 \texttt{CamaraInspeccion} captura el render de la cámara MuJoCo, segmenta la

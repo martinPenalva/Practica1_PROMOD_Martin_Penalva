@@ -45,19 +45,48 @@ el color de su geometría en el modelo según la temperatura.
 
 ## Organización
 
-- `main.py`: punto de entrada.
-- `src/planta_industrial.py`: coordina la simulación y sus componentes.
-- `src/cinta_transportadora.py`: estado independiente de cada cinta.
-- `src/camara_inspeccion.py`: captura y procesa las imágenes.
-- `src/objeto_industrial.py`: piezas y acceso al cuerpo MuJoCo asociado.
-- `src/horno.py`: temperatura, recepción de piezas y color MuJoCo.
-- `src/robot.py`: adaptador de la clase de planta al controlador IK existente.
-- `robot.py`: solucionador IK proporcionado; no se reimplementa aquí.
-- `src/planta.xml`: geometría MuJoCo de la planta y sus cámaras.
-- `planta_4_cintas.py`: parámetros y rutinas físicas auxiliares reutilizadas por
-  el coordinador.
+### Código Python de la aplicación
 
-## 9. Pruebas mínimas
+- `main.py`: punto de entrada; crea la planta y arranca su ciclo de ejecución.
+- `src/__init__.py`: declara el paquete y exporta las clases principales.
+- `src/planta_industrial.py`: configura y coordina MuJoCo, cintas, cámaras,
+  piezas, horno y robot durante la simulación.
+- `src/cinta_transportadora.py`: encapsula el estado, la velocidad y el
+  movimiento de los objetos de cada cinta.
+- `src/camara_inspeccion.py`: captura imágenes, detecta y clasifica formas, y
+  comunica el estado de inspección a la cinta asociada.
+- `src/objeto_industrial.py`: define las piezas, su identidad, forma, posición y
+  segmento; incluye las variantes `Cilindro` y `Caja`.
+- `src/horno.py`: gestiona la temperatura, la cola de piezas, su procesamiento
+  y el color de la geometría del horno en MuJoCo.
+- `src/RobotPanda.py`: adapta el controlador IK existente para que la planta
+  pueda inicializar y controlar el Panda como objeto.
+- `planta_4_cintas.py`: conserva la configuración y las funciones procedurales
+  de la simulación original, reutilizadas para la física, el transporte y la
+  representación de la planta.
+- `robot.py`: implementa el controlador procedural del Panda y la cinemática
+  inversa que reutiliza `src/RobotPanda.py`.
+
+### Scripts Python incluidos con MuJoCo Menagerie
+
+Estos scripts son herramientas del repositorio incluido en `vendor/`; no forman
+parte del arranque normal de la aplicación:
+
+- `vendor/mujoco_menagerie/build_registry.py`: comprueba los modelos MJCF y
+  genera el registro de modelos de Menagerie.
+- `vendor/mujoco_menagerie/catalog.py`: mantiene metadatos y utilidades del
+  catálogo de robots, como nombres, vistas previas y licencias.
+- `vendor/mujoco_menagerie/format_xml.py`: formatea archivos XML/MJCF.
+- `vendor/mujoco_menagerie/generate_gallery.py`: genera imágenes de vista previa
+  y actualiza la galería del README de Menagerie.
+- `vendor/mujoco_menagerie/regenerate_license.py`: regenera el archivo de
+  licencias de Menagerie a partir de las licencias de sus modelos.
+
+Otros recursos principales: `src/planta.xml` define la geometría y las cámaras
+MuJoCo; `requirements.txt` recoge las dependencias; y `vendor/mujoco_menagerie/`
+contiene el modelo Panda y sus recursos.
+
+##  Pruebas mínimas
 
 No hay una suite automatizada de pruebas en el proyecto. Para la comprobación
 visual, desde la carpeta raíz instala los requisitos y ejecuta:
